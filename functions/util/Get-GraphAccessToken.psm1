@@ -13,46 +13,74 @@ $refreshToken = $null
 $expires = $null
 $interval = $null
 
-function Get-GraphAccessToken ($clientId, $tenantId) {
-    if ([string]::IsNullOrEmpty($refreshToken)) {
-        Write-Verbose "No access token, getting token."
-        
-        <#
-        if ($clientId -eq "31359c7f-bd7e-475c-86db-fdb8c937548e") {
-            # openid scopes and authentiation
-            $script:scopes = $openIdScopes
-            $contentType = "application/x-www-form-urlencoded"
-            $codeBody = @{ 
-                client_id = $clientId
-                scope     = $openIdScopes
-            }
-        } else {
-            # resource scopes and authentication
-            $script:scopes = $resourceScopes
-            $contentType = $null
-            $codeBody = @{ 
-                client_id = $clientId
-                scope     = $resourceScores
-            }
-        }
-        #>
 
-        $codeBody = @{ 
-            client_id = $clientId
-            scope     = $scopes
-        }
+function Get-GraphMsalAuth($clientId, $tenantId) {
+    # MSAL handlex token refresh and token expiration automatically
 
-        $deviceCodeRequest = Invoke-RestMethod -Method POST -Uri "https://login.microsoftonline.com/$tenantId/oauth2/v2.0/devicecode" <# -ContentType $contentType #> -Body $codeBody
-        Write-Host $deviceCodeRequest.message
+    <# 
+    Note Scopes can be defined as a list of scopes or set to the default: https://graph.microsoft.com/.default
+    #>    
+    $scopes = 'https://graph.microsoft.com/.default'
 
-        $interval = $deviceCodeRequest.interval
-
-        $tokenBody = @{
-            grant_type  = "urn:ietf:params:oauth:grant-type:device_code"
-            device_code = $deviceCodeRequest.device_code
-            client_id   = $clientId
-        }
+    $MsalParams = @{
+    ClientId = $clientId
+    TenantId = $tenantId
+    Scopes   = $scopes
+    Silent = $true
     }
+    Write-Verbose "Getting MSAL auth token for client ID: $clientId and tenant ID: $tenantId"
+    # try Silent auth first 
+    try {
+        $MsalResponse = Get-MsalToken @MsalParams
+        $accessToken  = $MsalResponse.AccessToken
+        Write-Verbose "Access token obtained successfully."
+    }
+    catch {
+            Write-Verbose "Silent auth failed, falling back to interactive auth."
+          try {
+            $MsalParams.Remove('Silent')
+            $MsalResponse = Get-MsalToken @MsalParams
+            $accessToken = $MsalResponse.AccessToken
+            Write-Verbose "Access token obtained successfully after interactive auth."
+    }
+          catch {
+            Write-Verbose "Failed to obtain access token after interactive auth."
+            throw
+          }
+    }
+    $script:refreshToken = $MsalResponse.RefreshToken
+    return $accessToken
+}
+
+function Get-GraphDeviceToken($clientId, $tenantId){
+    Write-Verbose "No access token, getting token."
+        
+    $codeBody = @{ 
+        client_id = $clientId
+        scope     = $scopes
+    }
+
+    $deviceCodeRequest = Invoke-RestMethod -Method POST -Uri "https://login.microsoftonline.com/$tenantId/oauth2/v2.0/devicecode" <# -ContentType $contentType #> -Body $codeBody
+    Write-Host $deviceCodeRequest.message
+
+    $tokenBody = @{
+        grant_type  = "urn:ietf:params:oauth:grant-type:device_code"
+        device_code = $deviceCodeRequest.device_code
+        client_id   = $clientId
+    }
+    return $tokenBody
+}
+
+function Get-GraphAccessToken ($clientId, $tenantId) {
+
+    if ($Global:useMsal) {
+        Write-Verbose "Using delegated auth for client ID: $clientId and tenant ID: $tenantId"
+        return Get-GraphMsalAuth -clientId $clientId -tenantId $tenantId
+    }
+    elseif ([string]::IsNullOrEmpty($refreshToken) -and -not $Global:useMsal) {
+        Get-GraphDeviceToken -clientId $clientId -tenantId $tenantId
+    }
+
     elseif ($expires -ge ((Get-Date) + 600)) {
         return $accessToken
     }

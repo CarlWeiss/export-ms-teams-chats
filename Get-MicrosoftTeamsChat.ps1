@@ -38,8 +38,8 @@ Param(
     [Parameter(Mandatory = $false, HelpMessage = "Any chat IDs specified will be skipped")] [string[]] $skipIds = @(),
     [Parameter(Mandatory = $false, HelpMessage = "If a chat with the same file name already exists, this will create the new file with a number at the end instead (such as (1))")] [switch] $avoidOverwrite,
     [Parameter(Mandatory = $false, HelpMessage = "The client id of the Azure AD App Registration")] [string] $clientId = "7f586887-37d3-4d1f-89cf-153c7d1bbe54",
-    [Parameter(Mandatory = $false, HelpMessage = "The tenant id of the Azure AD environment the user logs into")] [string] $tenantId = "organizations"
-)
+    [Parameter(Mandatory = $false, HelpMessage = "The tenant id of the Azure AD environment the user logs into")] [string] $tenantId = "organizations",
+    [Parameter(Mandatory = $false, HelpMessage = "Use Microsoft Authentication Library (MSAL) authentication")] [boolean] $Global:useMsal = $true)
 
 #################################
 ##   Import Modules  ##
@@ -53,6 +53,7 @@ Get-ChildItem "$PSScriptRoot/functions/chat/*.psm1" | ForEach-Object { Import-Mo
 Get-ChildItem "$PSScriptRoot/functions/message/*.psm1" | ForEach-Object { Import-Module $_.FullName -Force -ArgumentList $verbose }
 Get-ChildItem "$PSScriptRoot/functions/user/*.psm1" | ForEach-Object { Import-Module $_.FullName -Force -ArgumentList $verbose }
 Get-ChildItem "$PSScriptRoot/functions/util/*.psm1" | ForEach-Object { Import-Module $_.FullName -Force -Global -ArgumentList $verbose }
+Get-ChildItem "$PSScriptRoot/functions/search/*.psm1" | ForEach-Object { Import-Module $_.FullName -Force -Global -ArgumentList $verbose }
 
 ####################################
 ##   HTML  ##
